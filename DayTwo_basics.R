@@ -1,7 +1,7 @@
 #this is where you start your file, put some common libraries here
 library(dplyr)
 library(ggplot2)
-library(nycflights23)
+library(nycflights13)
 
 #lets keep track of a few things
 #NYCflights is a package which contains DATASETS
@@ -18,6 +18,9 @@ glimpse(flights)
 
 #how many rows and columns
 dim(flights)
+
+#if we want to see flights in our environment; go ahead and use a happy little arrow
+flights<-flights
 
 #you can also select from the table using base R and the [col, row]
 flights[210344,2]
@@ -38,18 +41,19 @@ View(flights)
 filter(flights, carrier=="DL")
 
 # you can STACK these in the same function 
-filter(flights, carrier=="DL" & origin=="EWR")
+filter(flights, carrier=="DL" & origin=="JFK")
 
 #compare this to DELTA flights originating everywhere else in New York
 #this is where our operator friends are very handy, in this case not equal !=
-filter(flights, carrier=="DL" & origin!="EWR")
+filter(flights, carrier=="DL" & origin!="JFK")
 
 #why the difference?
 
 #lets see when things get really bad in new york, big departure delays
 arrange(flights, desc(dep_delay))
 
-#or you can write that as
+#or you can write that as - why do we want to use a pipe?
+#pipes can allow us to stack many functions in a visually easy way
 flights %>% arrange(desc(dep_delay))
 
 #its going to take FOREVER to read through half a million lines, can't we use our visual processing brains?
@@ -85,3 +89,9 @@ ggplot(delayed, aes(origin, dep_delay))+geom_boxplot()
 
 #lets do a few races...
 
+
+
+#now lets get a little more advanced
+#lets import a new dataset
+
+#who is the best bride ever?
