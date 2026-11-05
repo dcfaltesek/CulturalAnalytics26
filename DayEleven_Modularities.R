@@ -2,6 +2,7 @@ library(sna)
 library(ggplot2)
 library(dplyr)
 library(ggnetwork)
+library(NetworkToolbox)
 
 #WE ARE INSTALLING A PACKAGE ON OUR OWN TODAY (learning outcome)
 
