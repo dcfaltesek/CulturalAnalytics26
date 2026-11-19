@@ -1,0 +1,142 @@
+library(tidytext)
+library(topicmodels)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tm)
+library(stringr)
+
+
+#to start we will use the classic AP stories example
+#this is an antique
+data("AssociatedPress")
+
+#this object is a DTM
+AssociatedPress
+
+
+#this is our core mechanic - we pass our DTM to LDA; K is number of topics.
+#this is an antique example designed for a two topic spread
+ap_lda <- LDA(AssociatedPress, k = 2, control = list(seed = 1234))
+
+#cross-check and verify
+ap_lda
+
+#did we pick the right number of topics
+#perplexity should start high, then drop, then often increase again at the end
+perplexity(ap_lda)
+
+
+#and what are those
+#these are the words which represent each topic
+terms(ap_lda, k=5)
+
+
+#but which words...
+ap_topics <- tidy(ap_lda, matrix = "beta")
+ap_topics
+
+#group by TOPIC and get the TOP TEN
+ap_top_terms <- ap_topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 10) %>% 
+  ungroup() %>%
+  arrange(topic, -beta)
+
+#now make a plot of that
+ap_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+
+
+#this cute but largely useless for in situ models
+#this will give us a better look into the differences
+beta_wide <- ap_topics %>%
+  mutate(topic = paste0("topic", topic)) %>%
+  pivot_wider(names_from = topic, values_from = beta) %>% 
+  filter(topic1 > .001 | topic2 > .001) %>%
+  mutate(log_ratio = log2(topic2 / topic1))
+
+#and a visual on that
+beta_wide %>% 
+  ggplot(aes(topic1, topic2, colour=log_ratio))+geom_text(aes(label=term))
+
+#OK here is the problem with tidytext, they don't rep that this is what we all wanted
+ap_documents <- tidy(ap_lda, matrix = "gamma")
+ap_documents
+
+#and this is the real deep key - NOT IN THE TEXTBOOK
+ap_wide<-ap_documents %>%
+  pivot_wider(id_cols=document, 
+              names_from = topic,
+              values_from = c(gamma))
+
+#would you look at that...
+View(ap_wide)
+
+#so we don't get too frustrated lets rename the columns
+colnames(ap_wide)[2]<-"A"
+colnames(ap_wide)[3]<-"B"
+
+#and there is your visual
+ap_wide %>% 
+  ggplot(aes(A,B, colour=document))+geom_point()
+
+
+#this is great for a really easy example with diverse documents of two types, lets do more complex nonsense
+??LDA
+
+#filter some songs
+A<-mostswift %>% filter(Taylor.Swift==1) %>% sample_n(25) %>% mutate("Artist"="Taylor")
+B<-mostswift %>% filter(Kanye.West==1) %>% sample_n(25)%>% mutate("Artist"="Kanye")
+C<-mostswift %>% filter(Chili.Peppers==1) %>% sample_n(25) %>%  mutate("Artist"="RHCP")
+
+songs<-bind_rows(A,B,C)
+songs<-songs %>% select(album_name, track_name, song_lyric, Artist) %>% mutate("document"=1:dim(songs[1]))
+
+
+dtm <- songs |>
+  unnest_tokens(word, song_lyric) |>
+  anti_join(stop_words, by = "word") |>
+  count(document, word) |>
+  cast_dtm(document = document, term = word, value = n)
+
+musicLDA<-LDA(dtm, k = 10, control = list(seed = 1234))
+
+perplexity(musicLDA)
+
+terms(musicLDA, k=10)
+
+music_topics <- tidy(musicLDA, matrix = "beta")
+View(music_topics)
+
+music_documents <- tidy(musicLDA, matrix = "gamma")
+music_documents<-music_documents %>% mutate(document = as.numeric(document))
+
+#and this is the real deep key - NOT IN THE TEXTBOOK
+music_wide<-music_documents %>%
+  pivot_wider(id_cols=document, 
+              names_from = topic,
+              values_from = c(gamma))
+
+music_wide
+
+music_information<-inner_join(music_documents, songs)
+
+#make a graph
+music_information %>% filter(gamma > .9) %>% ggplot(aes(topic, gamma, colour=Artist))+geom_jitter()
+
+#so lets study those a little more
+topic_breakdown<-music_information %>% filter(gamma > .9) %>% group_by(Artist) %>% count(topic)
+View(topic_breakdown)
+
+#here it is by artist, you can run it again to get songs
+topic_breakdown %>% ggplot(aes(as.factor(topic), n, colour=Artist))+geom_jitter()
+
+#lets look at an album
+music_information %>% filter(album_name=="Californication") %>% ggplot(aes(as.factor(topic), gamma, colour=track_name))+geom_jitter()
+
+music_information %>% filter(album_name=="Californication") %>% count(track_name)
